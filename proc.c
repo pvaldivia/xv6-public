@@ -7,6 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -230,23 +231,6 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-
-  if(curproc == initproc)
-    panic("init exiting");
-
-  // Close all open files.
-  for(fd = 0; fd < NOFILE; fd++){
-    if(curproc->ofile[fd]){
-      fileclose(curproc->ofile[fd]);
-      curproc->ofile[fd] = 0;
-    }
-  }
-
-  begin_op();
-  iput(curproc->cwd);
-  end_op();
-  curproc->cwd = 0;
-
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
