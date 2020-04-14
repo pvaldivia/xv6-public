@@ -231,6 +231,23 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
+
+  if(curproc == initproc)
+    panic("init exiting");
+
+  // Close all open files.
+  for(fd = 0; fd < NOFILE; fd++){
+    if(curproc->ofile[fd]){
+      fileclose(curproc->ofile[fd]);
+      curproc->ofile[fd] = 0;
+    }
+  }
+
+  begin_op();
+  iput(curproc->cwd);
+  end_op();
+  curproc->cwd = 0;
+
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -523,13 +540,24 @@ int info(int param)
 {
   if (param == 1)
   {
-    cprintf("Hello #1 \n");
-    return 1;
+    int procCount = 0;
+    struct proc *p;
+
+    cprintf("Counting the number of processes\n");
+    acquire(&ptable.lock);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    {
+      if(p->state != UNUSED)
+      procCount++;
+    }
+    release(&ptable.lock);
+
+    return procCount;
   }
   else if(param == 2)
   {
-    cprintf("Hello #2 \n");
-    return 2;
+    cprintf("Total syscalls\n");
+    return syscallcount;
   }
   else if(param == 3)
   {

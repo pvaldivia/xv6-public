@@ -130,6 +130,9 @@ static int (*syscalls[])(void) = {
 [SYS_info]    sys_info,
 };
 
+
+int syscallcount = 0;
+
 void
 syscall(void)
 {
@@ -139,6 +142,7 @@ syscall(void)
   num = curproc->tf->eax;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     curproc->tf->eax = syscalls[num]();
+    syscallcount++;
   } else {
     cprintf("%d %s: unknown sys call %d\n",
             curproc->pid, curproc->name, num);
