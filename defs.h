@@ -158,6 +158,7 @@ int             fetchstr(uint, char**);
 void            syscall(void);
 extern int 	syscallcount;
 
+
 // timer.c
 void            timerinit(void);
 

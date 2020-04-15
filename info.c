@@ -13,6 +13,6 @@ int main(int argc, char *argv[])
 
     int param = atoi(argv[1]);
     int num = info(param);
-    printf(2,"Info returned: %d\n", num);
+    printf(2,"%d\n", num);
     exit();
 }

@@ -543,26 +543,25 @@ int info(int param)
     int procCount = 0;
     struct proc *p;
 
-    cprintf("Counting the number of processes\n");
-    acquire(&ptable.lock);
+    cprintf("Number of processes: ");
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     {
       if(p->state != UNUSED)
       procCount++;
     }
-    release(&ptable.lock);
-
     return procCount;
   }
   else if(param == 2)
   {
-    cprintf("Total syscalls\n");
+    cprintf("Total syscalls: ");
     return syscallcount;
   }
   else if(param == 3)
   {
-    cprintf("Hello #3 \n");
-    return 3;
+    struct proc *p = myproc();
+
+    cprintf("Number of memory pages: ");
+    return p->sz/PGSIZE;
   }
   return -1;
   
