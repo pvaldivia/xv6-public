@@ -100,3 +100,22 @@ sys_info(void)
 
   return info(arg);
 }
+
+void sys_settickets(void)
+{
+  int arg;
+  char* args;
+
+  if(argint(0, &arg) < 0)
+    return;
+
+  if(argstr(1, &args) < 0)
+    return;
+
+  settickets(arg,args);
+}
+
+void sys_getticks(void)
+{
+  getticks();
+}
