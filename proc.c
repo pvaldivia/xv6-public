@@ -196,6 +196,7 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
@@ -535,5 +536,54 @@ procdump(void)
 
 int clone(void *stack, int size)
 {
-  //code
+  int i, pid;
+  struct proc *np;
+  struct proc *curproc = myproc();;
+  cprintf("Started clone\n");
+
+  // Allocate process.
+  if((np = allocproc()) == 0)
+    return -1;
+	
+  // assign process state from proc.
+  np->pgdir = curproc->pgdir;
+
+    for(i = 0; i < NOFILE; i++)
+    if(curproc->ofile[i])
+      np->ofile[i] = curproc->ofile[i];
+  np->cwd = curproc->cwd;
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+
+  //uint main_stack = (uint)stack + PGSIZE;
+  //int temp_stack[1] = {0xFFFFFFFF}; 
+  //main_stack -= 4;
+  
+  //int * returnAddress = stack + PGSIZE - sizeof(int*);
+  //*returnAddress = 0xFFFFFFFF;
+
+  //if( copyout(np->pgdir,main_stack,temp_stack,4) < 0)
+  //return -1;
+
+  np->sz = curproc->sz;
+  np->parent = curproc;
+  *np->tf = *curproc->tf;
+
+  // Clear %eax so that fork returns 0 in the child.
+  np->tf->eax = 0;
+
+  //Set stack
+  //np->kstack = stack + PGSIZE;
+  np->tf->esp = (int)stack + PGSIZE - sizeof(int*);
+
+  //Set PID
+  pid = np->pid;
+
+  acquire(&ptable.lock);
+  np->state = RUNNABLE;
+  release(&ptable.lock);
+
+  cprintf("Exit clone\n");
+
+  return pid;
 }
