@@ -98,7 +98,7 @@ sys_clone(void)
   void *stack;
   int arg;
 
-  if (argptr(0,(void*)&stack,sizeof(*stack)) < 0)
+  if (argptr(0,(void*)&stack,sizeof(void*)) < 0)
   return -1;
 
   if (argint(1,&arg) < 0)

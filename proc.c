@@ -541,29 +541,37 @@ int clone(void *stack, int size)
   struct proc *curproc = myproc();;
   cprintf("Started clone\n");
 
+  if ((curproc->sz - (uint)stack) < PGSIZE)
+  return -1;
+
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
 	
   // assign process state from proc.
+  /*if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+    kfree(np->kstack);
+    np->kstack = 0;
+    np->state = UNUSED;
+    return -1;
+  }
+ */ 
   np->pgdir = curproc->pgdir;
 
-    for(i = 0; i < NOFILE; i++)
+  for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
-      np->ofile[i] = curproc->ofile[i];
-  np->cwd = curproc->cwd;
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
-  //uint main_stack = (uint)stack + PGSIZE;
-  //int temp_stack[1] = {0xFFFFFFFF}; 
-  //main_stack -= 4;
-  
-  //int * returnAddress = stack + PGSIZE - sizeof(int*);
-  //*returnAddress = 0xFFFFFFFF;
-
-  //if( copyout(np->pgdir,main_stack,temp_stack,4) < 0)
-  //return -1;
+  uint stackDiff = curproc->tf->ebp - curproc->tf->esp;
+  np->tf->esp = (uint)(stack) + size - stackDiff;
+  cprintf("esp = %d\n",(np->tf->esp));
+  cprintf("cebp = %p\n",(void*)(curproc->tf->ebp));
+  cprintf("cesp = %p\n",(void*)(curproc->tf->esp));
+  if(copyout(np->pgdir,np->tf->esp,(void*)curproc->tf->esp,stackDiff) < 0)
+  return -1;
 
   np->sz = curproc->sz;
   np->parent = curproc;
@@ -571,10 +579,18 @@ int clone(void *stack, int size)
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
+  
+  np->tf->esp = (uint)(stack) + size - stackDiff;
+  np->tf->ebp = np->tf->esp + stackDiff;
+  cprintf("ebp = %d\n",(np->tf->ebp));
+  cprintf("esp = %d\n",(np->tf->esp));
+  cprintf("sz = %d\n",np->sz);
 
-  //Set stack
-  //np->kstack = stack + PGSIZE;
-  np->tf->esp = (int)stack + PGSIZE - sizeof(int*);
+  cprintf("stack = %d\n",stack);
+  cprintf("size = %d\n",size);
+  cprintf("stack+size = %d\n",(uint)(stack) + size);
+  cprintf("pid  = %d\n",np->pid);
+  
 
   //Set PID
   pid = np->pid;
