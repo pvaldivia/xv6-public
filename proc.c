@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->num_threads = 0;
 
   release(&ptable.lock);
 
@@ -236,12 +237,12 @@ exit(void)
     panic("init exiting");
 
   // Close all open files.
-  for(fd = 0; fd < NOFILE; fd++){
-    if(curproc->ofile[fd]){
-      fileclose(curproc->ofile[fd]);
-      curproc->ofile[fd] = 0;
+    for(fd = 0; fd < NOFILE; fd++){
+      if(curproc->ofile[fd]){
+        fileclose(curproc->ofile[fd]);
+        curproc->ofile[fd] = 0;
+      }
     }
-  }
 
   begin_op();
   iput(curproc->cwd);
@@ -285,6 +286,7 @@ wait(void)
       if(p->parent != curproc)
         continue;
       havekids = 1;
+
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
@@ -299,6 +301,50 @@ wait(void)
         release(&ptable.lock);
         return pid;
       }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+int
+join(void*sp)
+{
+  struct proc *p;
+  int havekids, pid;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pgdir != curproc->pgdir)
+	      continue;
+
+      havekids = 1;
+	if(p->state == ZOMBIE){
+        // Found one.
+	sp = p->stack;
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+	curproc->num_threads--;
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }	
     }
 
     // No point waiting if we don't have any children.
@@ -539,7 +585,7 @@ int clone(void *stack, int size)
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();;
-  cprintf("Started clone\n");
+  //cprintf("Started clone\n");
 
   if ((curproc->sz - (uint)stack) < PGSIZE)
   return -1;
@@ -565,31 +611,36 @@ int clone(void *stack, int size)
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
-  uint stackDiff = curproc->tf->ebp - curproc->tf->esp;
-  np->tf->esp = (uint)(stack) + size - stackDiff;
-  cprintf("esp = %d\n",(np->tf->esp));
-  cprintf("cebp = %p\n",(void*)(curproc->tf->ebp));
-  cprintf("cesp = %p\n",(void*)(curproc->tf->esp));
-  if(copyout(np->pgdir,np->tf->esp,(void*)curproc->tf->esp,stackDiff) < 0)
-  return -1;
+  //uint stackDiff = curproc->tf->ebp - curproc->tf->esp;
+  //np->tf->esp = (uint)(stack) + size - stackDiff;
+  //cprintf("esp = %d\n",(np->tf->esp));
+  //cprintf("cebp = %p\n",(void*)(curproc->tf->ebp));
+  //cprintf("cesp = %p\n",(void*)(curproc->tf->esp));
+  //if(copyout(np->pgdir,np->tf->esp,(void*)curproc->tf->esp,stackDiff) < 0)
+  //return -1;
 
+  np->num_threads = -1;
   np->sz = curproc->sz;
   np->parent = curproc;
+  np->stack = stack;
   *np->tf = *curproc->tf;
+  curproc->num_threads++;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
   
-  np->tf->esp = (uint)(stack) + size - stackDiff;
-  np->tf->ebp = np->tf->esp + stackDiff;
-  cprintf("ebp = %d\n",(np->tf->ebp));
-  cprintf("esp = %d\n",(np->tf->esp));
-  cprintf("sz = %d\n",np->sz);
+  np->tf->esp = (uint)(stack) + PGSIZE - 8;
+  np->tf->ebp = (uint)(stack) + PGSIZE;
+  np->tf->eip = size;
+  //cprintf("ebp = %d\n",(np->tf->ebp));
+  //cprintf("esp = %d\n",(np->tf->esp));
+  //cprintf("eip = %d\n",(np->tf->eip));
+  //cprintf("sz = %d\n",np->sz);
 
-  cprintf("stack = %d\n",stack);
-  cprintf("size = %d\n",size);
-  cprintf("stack+size = %d\n",(uint)(stack) + size);
-  cprintf("pid  = %d\n",np->pid);
+  //cprintf("stack = %d\n",stack);
+  //cprintf("size = %d\n",size);
+  //cprintf("stack+size = %d\n",(uint)(stack) + size);
+  //cprintf("pid  = %d\n",np->pid);
   
 
   //Set PID
@@ -599,7 +650,7 @@ int clone(void *stack, int size)
   np->state = RUNNABLE;
   release(&ptable.lock);
 
-  cprintf("Exit clone\n");
+  //cprintf("Exit clone\n");
 
   return pid;
 }
