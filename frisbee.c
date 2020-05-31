@@ -13,18 +13,6 @@ struct lock_t
 
 static inline int FAA(int* addr, int newval)
 {
-
-  /*
-  uint result;
-
-  // The + in "+m" denotes a read-modify-write operand.
-  asm volatile("lock; xchgl %0, %1" :
-               "+m" (*addr), "=a" (result) :
-               "1" (newval) :
-               "cc");
-  return result;
-  */
-
   __asm__ volatile
   ("lock; xaddl %0, %1"
      : "+r" (newval), "+m" (*addr)
@@ -32,11 +20,6 @@ static inline int FAA(int* addr, int newval)
      : "memory"
   );
   return newval;
-  /*
-  int old = *addr;
-  *addr = old + 1;
-  return old;
-  */
 }
 
 static struct {
@@ -52,12 +35,9 @@ lock_init(struct lock_t *lock)
   lock->ticket = 0;
 }
 
-int totalPass;
-int numThreads;
-
 void lock_aquire(struct lock_t* lock)
 {
-  while(FAA(&lock->turn,1) != 0);// || tTable.turns[pid%numThreads] == 0);
+  while(FAA(&lock->turn,1) != 0);
   __sync_synchronize();
 }
 

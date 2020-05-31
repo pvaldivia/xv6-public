@@ -89,6 +89,7 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
   p->num_threads = 0;
+  p->isThread = 0;
 
   release(&ptable.lock);
 
@@ -237,6 +238,8 @@ exit(void)
     panic("init exiting");
 
   // Close all open files.
+  if(!curproc->isThread)
+  {
     for(fd = 0; fd < NOFILE; fd++){
       if(curproc->ofile[fd]){
         fileclose(curproc->ofile[fd]);
@@ -244,10 +247,11 @@ exit(void)
       }
     }
 
-  begin_op();
-  iput(curproc->cwd);
-  end_op();
-  curproc->cwd = 0;
+    begin_op();
+    iput(curproc->cwd);
+    end_op();
+    curproc->cwd = 0;
+  }
 
   acquire(&ptable.lock);
 
@@ -580,12 +584,11 @@ procdump(void)
   }
 }
 
-int clone(void *stack, int size)
+int clone(void *stack, int funcAddr)
 {
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();;
-  //cprintf("Started clone\n");
 
   if ((curproc->sz - (uint)stack) < PGSIZE)
   return -1;
@@ -595,31 +598,17 @@ int clone(void *stack, int size)
     return -1;
 	
   // assign process state from proc.
-  /*if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
-    kfree(np->kstack);
-    np->kstack = 0;
-    np->state = UNUSED;
-    return -1;
-  }
- */ 
   np->pgdir = curproc->pgdir;
 
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
-      np->ofile[i] = filedup(curproc->ofile[i]);
-  np->cwd = idup(curproc->cwd);
+      np->ofile[i] = (curproc->ofile[i]);
+  np->cwd = (curproc->cwd);
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
-  //uint stackDiff = curproc->tf->ebp - curproc->tf->esp;
-  //np->tf->esp = (uint)(stack) + size - stackDiff;
-  //cprintf("esp = %d\n",(np->tf->esp));
-  //cprintf("cebp = %p\n",(void*)(curproc->tf->ebp));
-  //cprintf("cesp = %p\n",(void*)(curproc->tf->esp));
-  //if(copyout(np->pgdir,np->tf->esp,(void*)curproc->tf->esp,stackDiff) < 0)
-  //return -1;
-
   np->num_threads = -1;
+  np->isThread = 1;
   np->sz = curproc->sz;
   np->parent = curproc;
   np->stack = stack;
@@ -631,17 +620,7 @@ int clone(void *stack, int size)
   
   np->tf->esp = (uint)(stack) + PGSIZE - 8;
   np->tf->ebp = (uint)(stack) + PGSIZE;
-  np->tf->eip = size;
-  //cprintf("ebp = %d\n",(np->tf->ebp));
-  //cprintf("esp = %d\n",(np->tf->esp));
-  //cprintf("eip = %d\n",(np->tf->eip));
-  //cprintf("sz = %d\n",np->sz);
-
-  //cprintf("stack = %d\n",stack);
-  //cprintf("size = %d\n",size);
-  //cprintf("stack+size = %d\n",(uint)(stack) + size);
-  //cprintf("pid  = %d\n",np->pid);
-  
+  np->tf->eip = funcAddr;
 
   //Set PID
   pid = np->pid;
@@ -649,8 +628,6 @@ int clone(void *stack, int size)
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);
-
-  //cprintf("Exit clone\n");
 
   return pid;
 }
